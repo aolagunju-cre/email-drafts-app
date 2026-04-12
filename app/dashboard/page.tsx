@@ -7,6 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import {
   Send,
@@ -16,6 +23,8 @@ import {
   CheckCircle,
   Loader2,
   Sparkles,
+  Users,
+  RefreshCw,
 } from "lucide-react";
 
 interface Draft {
@@ -24,6 +33,15 @@ interface Draft {
   subject: string;
   body: string;
   status: "generated" | "edited";
+  name?: string;
+}
+
+interface AttioContact {
+  record_id: string;
+  name: string;
+  email: string;
+  company: string;
+  job_title: string;
 }
 
 function buildMailto(to: string, subject: string, body: string): string {
@@ -34,8 +52,10 @@ function buildMailto(to: string, subject: string, body: string): string {
 
 export default function Dashboard() {
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isFetchingContacts, setIsFetchingContacts] = useState(false);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [editingDraft, setEditingDraft] = useState<Draft | null>(null);
+  const [draftCount, setDraftCount] = useState<string>("5");
   const [formData, setFormData] = useState({
     prospectName: "",
     prospectCompany: "",
@@ -43,7 +63,77 @@ export default function Dashboard() {
     additionalContext: "",
   });
 
-  const handleGenerate = async (e: React.FormEvent) => {
+  const handleAutoGenerate = async () => {
+    setIsGenerating(true);
+    setIsFetchingContacts(true);
+
+    try {
+      // Step 1: Fetch contacts from Attio
+      const contactsRes = await fetch(`/api/attio/contacts?limit=${draftCount}`);
+      const contactsData = await contactsRes.json();
+
+      if (!contactsRes.ok) {
+        throw new Error(contactsData.error || "Failed to fetch contacts from Attio");
+      }
+
+      const contacts: AttioContact[] = contactsData.contacts;
+
+      if (contacts.length === 0) {
+        toast.error("No contacts found in Attio", {
+          description: "Add some contacts to your Attio CRM first.",
+        });
+        return;
+      }
+
+      setIsFetchingContacts(false);
+
+      // Step 2: Generate drafts for all contacts
+      const generateRes = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contacts: contacts.map((c) => ({
+            name: c.name,
+            email: c.email,
+            company: c.company,
+            job_title: c.job_title,
+          })),
+          propertyInterest: formData.propertyInterest,
+          additionalContext: formData.additionalContext,
+        }),
+      });
+
+      const generateData = await generateRes.json();
+
+      if (!generateRes.ok) {
+        throw new Error(generateData.error || "Failed to generate drafts");
+      }
+
+      const newDrafts: Draft[] = generateData.drafts.map(
+        (draft: { to: string; subject: string; body: string }, i: number) => ({
+          id: `draft-${Date.now()}-${i}`,
+          to: draft.to,
+          subject: draft.subject,
+          body: draft.body,
+          status: "generated" as const,
+          name: contacts[i]?.name || "",
+        })
+      );
+
+      setDrafts((prev) => [...newDrafts, ...prev]);
+      toast.success(`${newDrafts.length} drafts generated from Attio`, {
+        description: `${contactsData.count} contacts pulled. Review and open in email to send.`,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to generate";
+      toast.error(msg);
+    } finally {
+      setIsGenerating(false);
+      setIsFetchingContacts(false);
+    }
+  };
+
+  const handleManualGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsGenerating(true);
 
@@ -64,18 +154,18 @@ export default function Dashboard() {
           i: number
         ) => ({
           id: `draft-${Date.now()}-${i}`,
-          to: draft.to || `${formData.prospectName} <${formData.prospectName.toLowerCase().replace(" ", ".")}@company.com>`,
+          to: draft.to,
           subject: draft.subject,
           body: draft.body,
           status: "generated" as const,
         })
       );
 
-      setDrafts(newDrafts);
-      toast.success(`${newDrafts.length} drafts generated`, { description: "Review below and open in your email client to send." });
+      setDrafts((prev) => [...newDrafts, ...prev]);
+      toast.success(`${newDrafts.length} draft generated`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to generate";
-      toast.error("Error", { description: msg });
+      toast.error(msg);
     } finally {
       setIsGenerating(false);
     }
@@ -83,7 +173,7 @@ export default function Dashboard() {
 
   const handleOpenInEmail = (draft: Draft) => {
     window.location.href = buildMailto(draft.to, draft.subject, draft.body);
-    toast(`Opening email client for ${draft.to}`);
+    toast(`Opening email for ${draft.name || draft.to}…`);
   };
 
   const handleEditDraft = (draft: Draft) => {
@@ -94,7 +184,9 @@ export default function Dashboard() {
     if (editingDraft) {
       setDrafts((prev) =>
         prev.map((d) =>
-          d.id === editingDraft.id ? { ...editingDraft, status: "edited" as const } : d
+          d.id === editingDraft.id
+            ? { ...editingDraft, status: "edited" as const }
+            : d
         )
       );
       setEditingDraft(null);
@@ -117,28 +209,108 @@ export default function Dashboard() {
           </div>
           <div>
             <h1 className="font-semibold text-lg">Email Draft Generator</h1>
-            <p className="text-sm text-muted-foreground">Olagunjua Real Estate · Cresa</p>
+            <p className="text-sm text-muted-foreground">
+              Olagunjua Real Estate · Cresa
+            </p>
           </div>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-2">
             <Badge variant="outline">{drafts.length} drafts</Badge>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-8 space-y-8">
-        {/* Generate Form */}
+        {/* Auto Generate Card */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-blue-500" />
-              Generate Email Drafts
+              <Users className="h-5 w-5 text-blue-500" />
+              Auto Generate from Attio CRM
             </CardTitle>
             <CardDescription>
-              Enter prospect details and our AI will generate personalized cold email drafts
+              Pull contacts from your Attio CRM and generate personalized cold emails
+              for all of them at once.
             </CardDescription>
           </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+              <div className="space-y-2 flex-1">
+                <Label>Number of drafts</Label>
+                <Select value={draftCount} onValueChange={setDraftCount}>
+                  <SelectTrigger className="w-full sm:w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1, 3, 5, 10, 15, 20].map((n) => (
+                      <SelectItem key={n} value={String(n)}>
+                        {n} draft{n !== 1 ? "s" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2 flex-1">
+                <Label>Property Interest (optional)</Label>
+                <Input
+                  placeholder="Downtown Calgary office, 5,000 sq ft…"
+                  value={formData.propertyInterest}
+                  onChange={(e) =>
+                    setFormData({ ...formData, propertyInterest: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2 flex-1">
+                <Label>Additional context (optional)</Label>
+                <Input
+                  placeholder="Any extra context to include in emails…"
+                  value={formData.additionalContext}
+                  onChange={(e) =>
+                    setFormData({ ...formData, additionalContext: e.target.value })
+                  }
+                />
+              </div>
+              <Button
+                onClick={handleAutoGenerate}
+                disabled={isGenerating}
+                className="w-full sm:w-auto shrink-0"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {isFetchingContacts ? "Fetching contacts…" : "Generating…"}
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4" />
+                    Auto Generate {draftCount}
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Manual Entry */}
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t" />
+          </div>
+          <div className="relative flex justify-center">
+            <span className="bg-slate-50 px-4 text-sm text-muted-foreground">
+              Or enter one prospect manually
+            </span>
+          </div>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Sparkles className="h-4 w-4 text-blue-500" />
+              Manual Prospect Entry
+            </CardTitle>
+          </CardHeader>
           <CardContent>
-            <form onSubmit={handleGenerate} className="space-y-4">
+            <form onSubmit={handleManualGenerate} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="prospectName">Prospect Name *</Label>
@@ -149,7 +321,6 @@ export default function Dashboard() {
                       setFormData({ ...formData, prospectName: e.target.value })
                     }
                     placeholder="John Smith"
-                    required
                   />
                 </div>
                 <div className="space-y-2">
@@ -161,34 +332,10 @@ export default function Dashboard() {
                       setFormData({ ...formData, prospectCompany: e.target.value })
                     }
                     placeholder="Acme Corp"
-                    required
-                  />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="propertyInterest">Property Interest</Label>
-                  <Input
-                    id="propertyInterest"
-                    value={formData.propertyInterest}
-                    onChange={(e) =>
-                      setFormData({ ...formData, propertyInterest: e.target.value })
-                    }
-                    placeholder="Downtown Calgary office space, 5,000 sq ft"
-                  />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="additionalContext">Additional Context</Label>
-                  <Textarea
-                    id="additionalContext"
-                    value={formData.additionalContext}
-                    onChange={(e) =>
-                      setFormData({ ...formData, additionalContext: e.target.value })
-                    }
-                    placeholder="Any specific details about the prospect, their needs, or what you want to emphasize…"
-                    rows={3}
                   />
                 </div>
               </div>
-              <Button type="submit" disabled={isGenerating} className="w-full md:w-auto">
+              <Button type="submit" disabled={isGenerating} variant="outline">
                 {isGenerating ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -197,7 +344,7 @@ export default function Dashboard() {
                 ) : (
                   <>
                     <Sparkles className="h-4 w-4" />
-                    Generate Drafts
+                    Generate Single Draft
                   </>
                 )}
               </Button>
@@ -208,19 +355,30 @@ export default function Dashboard() {
         {/* Drafts */}
         {drafts.length > 0 && (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold">Generated Drafts</h2>
+            <h2 className="text-lg font-semibold">Your Drafts</h2>
             {drafts.map((draft) => (
               <Card key={draft.id}>
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <Badge variant={draft.status === "edited" ? "secondary" : "default"}>
+                        <Badge
+                          variant={
+                            draft.status === "edited" ? "secondary" : "default"
+                          }
+                        >
                           {draft.status === "edited" ? "Edited" : "Generated"}
                         </Badge>
+                        {draft.name && (
+                          <span className="text-sm text-muted-foreground">
+                            {draft.name}
+                          </span>
+                        )}
                       </div>
                       <CardTitle className="text-base">{draft.subject}</CardTitle>
-                      <CardDescription className="truncate">To: {draft.to}</CardDescription>
+                      <CardDescription className="truncate">
+                        To: {draft.to}
+                      </CardDescription>
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
                       <Button
@@ -293,13 +451,17 @@ export default function Dashboard() {
                 />
               </div>
               <div className="flex gap-2 justify-end">
-                <Button
-                  variant="outline"
-                  onClick={() => setEditingDraft(null)}
-                >
+                <Button variant="outline" onClick={() => setEditingDraft(null)}>
                   Cancel
                 </Button>
-                <Button onClick={handleSaveEdit}>
+                <Button
+                  onClick={() => {
+                    handleSaveEdit();
+                    if (editingDraft) {
+                      handleOpenInEmail(editingDraft);
+                    }
+                  }}
+                >
                   <CheckCircle className="h-4 w-4" />
                   Save &amp; Open in Email
                 </Button>
