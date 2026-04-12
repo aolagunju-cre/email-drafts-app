@@ -25,44 +25,32 @@ function generateDraftEmail(
   additionalContext: string
 ) {
   const firstName = name.split(" ")[0] || name;
-  const personalization = company
-    ? `I noticed ${company} is looking at ${propertyInterest || "office space in Calgary"}.`
-    : `I came across your profile and think you might benefit from what we're building at Cresa.`;
 
-  const subjectLines = [
-    `${company ? company + " — " : ""}Quick question about your office space needs`,
-    `${propertyInterest || "Calgary office space"} — fitting your timeline?`,
-    `${firstName}, one thing about Calgary commercial real estate`,
-  ];
+  const subject = `Pleasure to Connect & Office Opportunity`;
 
-  const bodies = [
-    `Hi ${firstName},
+  const body = `Hi ${firstName},
 
-${personalization}
+Hope you're doing well. Not sure if you're the right person at ${company || "your company"} to talk to about office space here in Calgary, but thought I would reach out.
 
-I've been helping companies like yours find the right office space in Calgary — typically saving them 15-20% on lease costs while finding better locations than they expected.
+My name is Abdul-Samad Olagunju, and I'm a corporate real estate advisor at Cresa focused on helping tenants reduce costs and find the right fit in terms of their space. We recently helped a different firm save 10% on their lease costs by proactively looking at options in the market, so I thought it might be useful to share this opportunity with your team.
 
-${additionalContext ? additionalContext + "\n\n" : ""}Would it make sense to grab a 15-minute call this week to see if there's a fit?
+${additionalContext ? additionalContext + "\n\n" : ""}${propertyInterest ? propertyInterest + "\n\n" : ""}If this isn't a fit, feel free to share your criteria such as size, budget, location, and timing, and I can keep an eye out for opportunities that align. And if you'd prefer not to receive these, just let me know.
 
 Best,
-Abdul-Samad
-Cresa`,
-    `Hey ${firstName},
 
-${personalization}
+Abdul-Samad Olagunju
+Advisor
+Cresa
+aolagunju@cresa.com
+587.432.0012 mobile
 
-Rather than doing a cold outreach, I wanted to offer something useful: a free market snapshot of what's available in ${propertyInterest || "Calgary's commercial market"} right now — no commitment required.
+Suite 1550, 324 – 8 Avenue SW
+Home Oil Tower
+Calgary, AB T2P 2Z2
 
-${additionalContext ? additionalContext + "\n\n" : ""}Worth a quick conversation to see if it sparks any ideas?
+Book time to meet with me: https://calendly.com/abdul-samad-olagunju`;
 
-Abdul-Samad
-Cresa`,
-  ];
-
-  const subject = subjectLines[Math.floor(Math.random() * subjectLines.length)];
-  const emailBody = bodies[Math.floor(Math.random() * bodies.length)];
-
-  return { subject, body: emailBody };
+  return { subject, body };
 }
 
 export async function POST(request: Request) {
