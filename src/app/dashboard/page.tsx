@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import styles from "./dashboard.module.css";
 
 interface Draft {
@@ -8,7 +8,7 @@ interface Draft {
   to: string;
   subject: string;
   body: string;
-  status: "draft" | "generated" | "edited" | "sending" | "sent" | "failed";
+  status: "draft" | "generated" | "edited";
 }
 
 interface GenerateFormData {
@@ -16,6 +16,12 @@ interface GenerateFormData {
   prospectCompany: string;
   propertyInterest: string;
   additionalContext: string;
+}
+
+function buildMailto(to: string, subject: string, body: string): string {
+  const subjectEncoded = encodeURIComponent(subject);
+  const bodyEncoded = encodeURIComponent(body);
+  return `mailto:${encodeURIComponent(to)}?subject=${subjectEncoded}&body=${bodyEncoded}`;
 }
 
 export default function Dashboard() {
@@ -34,7 +40,7 @@ export default function Dashboard() {
     total: drafts.length,
     draft: drafts.filter((d) => d.status === "draft").length,
     generated: drafts.filter((d) => d.status === "generated").length,
-    sent: drafts.filter((d) => d.status === "sent").length,
+    edited: drafts.filter((d) => d.status === "edited").length,
   };
 
   const handleGenerate = async (e: React.FormEvent) => {
@@ -65,7 +71,7 @@ export default function Dashboard() {
       );
 
       setDrafts(newDrafts);
-      setMessage({ type: "success", text: `${newDrafts.length} drafts generated! Review and edit below.` });
+      setMessage({ type: "success", text: `${newDrafts.length} drafts generated! Review and click "Open in Email" to send.` });
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "Failed to generate drafts";
       setMessage({ type: "error", text: errorMessage });
@@ -80,54 +86,26 @@ export default function Dashboard() {
 
   const handleSaveEdit = () => {
     if (editingDraft) {
-      setDrafts((prev) => prev.map((d) => (d.id === editingDraft.id ? { ...editingDraft, status: "edited" as const } : d)));
+      setDrafts((prev) =>
+        prev.map((d) =>
+          d.id === editingDraft.id ? { ...editingDraft, status: "edited" as const } : d
+        )
+      );
       setEditingDraft(null);
       setMessage({ type: "success", text: "Draft updated!" });
     }
   };
 
-  const handleSendDraft = async (draftId: string) => {
-    const draft = drafts.find((d) => d.id === draftId);
-    if (!draft) return;
-
-    // Update status to sending
-    setDrafts((prev) => prev.map((d) => (d.id === draftId ? { ...d, status: "sending" as const } : d)));
-    setMessage(null);
-
-    try {
-      const response = await fetch("/api/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to: draft.to,
-          subject: draft.subject,
-          body: draft.body,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) throw new Error(data.error || "Send failed");
-
-      setDrafts((prev) => prev.map((d) => (d.id === draftId ? { ...d, status: "sent" as const } : d)));
-      setMessage({ type: "success", text: `Email sent to ${draft.to}!` });
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to send";
-      setDrafts((prev) => prev.map((d) => (d.id === draftId ? { ...d, status: "failed" as const } : d)));
-      setMessage({ type: "error", text: errorMessage });
-    }
-  };
-
-  const handleSendAll = async () => {
-    const unsentDrafts = drafts.filter((d) => ["generated", "edited"].includes(d.status));
-    if (unsentDrafts.length === 0) {
-      setMessage({ type: "error", text: "No drafts to send" });
-      return;
-    }
-
-    for (const draft of unsentDrafts) {
-      await handleSendDraft(draft.id);
-    }
+  const handleOpenInEmail = (draft: Draft) => {
+    const mailtoUrl = buildMailto(draft.to, draft.subject, draft.body);
+    window.location.href = mailtoUrl;
+    // Mark as opened (user will send manually from their email client)
+    setDrafts((prev) =>
+      prev.map((d) =>
+        d.id === draft.id ? { ...d, status: "draft" as const } : d
+      )
+    );
+    setMessage({ type: "success", text: `Opening ${draft.to} in your email client...` });
   };
 
   const handleDeleteDraft = (draftId: string) => {
@@ -164,12 +142,8 @@ export default function Dashboard() {
             <div className={styles.statValue}>{stats.total}</div>
           </div>
           <div className={styles.statCard}>
-            <div className={styles.statLabel}>Pending Review</div>
+            <div className={styles.statLabel}>Ready to Send</div>
             <div className={styles.statValue}>{stats.generated + stats.edited}</div>
-          </div>
-          <div className={styles.statCard}>
-            <div className={styles.statLabel}>Sent</div>
-            <div className={styles.statValue}>{stats.sent}</div>
           </div>
         </div>
 
@@ -250,9 +224,6 @@ export default function Dashboard() {
           <div className={styles.section}>
             <div className={styles.sectionHeader}>
               <h2 className={styles.sectionTitle}>Generated Drafts</h2>
-              <button className={styles.sendAllButton} onClick={handleSendAll} disabled={drafts.filter((d) => ["generated", "edited"].includes(d.status)).length === 0}>
-                Send All via Email
-              </button>
             </div>
             <div className={styles.sectionContent}>
               {drafts.map((draft) => (
@@ -267,8 +238,8 @@ export default function Dashboard() {
                           <button className={styles.actionButton} onClick={() => handleEditDraft(draft)}>
                             Edit
                           </button>
-                          <button className={styles.actionButtonPrimary} onClick={() => handleSendDraft(draft.id)}>
-                            Send Email
+                          <button className={styles.actionButtonPrimary} onClick={() => handleOpenInEmail(draft)}>
+                            Open in Email
                           </button>
                         </>
                       )}
@@ -335,7 +306,7 @@ export default function Dashboard() {
                 Cancel
               </button>
               <button className={styles.actionButtonPrimary} onClick={handleSaveEdit}>
-                Save Changes
+                Save & Open in Email
               </button>
             </div>
           </div>
