@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getTodaysContacts } from "@/lib/attio";
+import { getRandomContacts } from "@/lib/attio";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const contacts = await getTodaysContacts(limit);
+    const contacts = await getRandomContacts(limit);
     return NextResponse.json({ contacts, count: contacts.length });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Failed to fetch contacts";

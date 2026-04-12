@@ -126,11 +126,21 @@ export async function getUndraftedContacts(limit = 10): Promise<AttioContact[]> 
   })
 }
 
-// Get the 10 most recently added contacts without drafts
-export async function getTodaysContacts(limit = 10): Promise<AttioContact[]> {
+// Fisher-Yates shuffle
+function shuffle<T>(array: T[]): T[] {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// Get N random contacts from Attio who have emails
+export async function getRandomContacts(limit = 10): Promise<AttioContact[]> {
   const allContacts = await getUndraftedContacts(100)
-  // Filter out contacts without emails and return top N
-  return allContacts.filter(c => c.email).slice(0, limit)
+  const withEmails = allContacts.filter((c) => c.email);
+  return shuffle(withEmails).slice(0, limit);
 }
 
 // Get contacts by IDs
