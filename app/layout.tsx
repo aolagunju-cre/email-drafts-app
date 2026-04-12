@@ -1,19 +1,23 @@
-import Link from 'next/link'
-import './globals.css'
+import Link from "next/link";
+import { Toaster } from "@/components/ui/sonner";
+import "./globals.css";
 
 export const metadata = {
-  title: 'Email Drafts',
-  description: 'Daily cold email drafts for Abdul',
-}
+  title: "Email Drafts — Olagunjua Real Estate",
+  description: "Daily cold email drafts for Abdul-Samad Olagunju",
+};
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className="antialiased">
+        {children}
+        <Toaster />
+      </body>
     </html>
-  )
+  );
 }
