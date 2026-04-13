@@ -1,4 +1,4 @@
-# Attio API Helpers
+// Attio API Helpers
 
 const ATTIO_API_KEY = process.env.ATTIO_API_KEY!
 
