@@ -32,6 +32,7 @@ interface Draft {
   to: string;
   subject: string;
   body: string;
+  htmlBody?: string;
   status: "generated" | "edited";
   name?: string;
 }
@@ -56,6 +57,7 @@ export default function Dashboard() {
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [editingDraft, setEditingDraft] = useState<Draft | null>(null);
   const [draftCount, setDraftCount] = useState<string>("5");
+  const [isSendingAll, setIsSendingAll] = useState(false);
   const [formData, setFormData] = useState({
     prospectName: "",
     prospectCompany: "",
@@ -110,11 +112,12 @@ export default function Dashboard() {
       }
 
       const newDrafts: Draft[] = generateData.drafts.map(
-        (draft: { to: string; subject: string; body: string }, i: number) => ({
+        (draft: { to: string; subject: string; body: string; htmlBody?: string }, i: number) => ({
           id: `draft-${Date.now()}-${i}`,
           to: draft.to,
           subject: draft.subject,
           body: draft.body,
+          htmlBody: draft.htmlBody,
           status: "generated" as const,
           name: contacts[i]?.name || "",
         })
@@ -150,13 +153,14 @@ export default function Dashboard() {
 
       const newDrafts: Draft[] = data.drafts.map(
         (
-          draft: { to: string; subject: string; body: string },
+          draft: { to: string; subject: string; body: string; htmlBody?: string },
           i: number
         ) => ({
           id: `draft-${Date.now()}-${i}`,
           to: draft.to,
           subject: draft.subject,
           body: draft.body,
+          htmlBody: draft.htmlBody,
           status: "generated" as const,
         })
       );
@@ -199,6 +203,42 @@ export default function Dashboard() {
     toast.success("Draft deleted");
   };
 
+  const handleOpenAll = () => {
+    if (drafts.length === 0) return;
+    drafts.forEach((draft, i) => {
+      setTimeout(() => {
+        window.location.href = buildMailto(draft.to, draft.subject, draft.body);
+      }, i * 500); // 500ms delay between each
+    });
+    toast(`Opening ${drafts.length} emails in your email client…`);
+  };
+
+  const handleSendAll = async () => {
+    if (drafts.length === 0) return;
+    setIsSendingAll(true);
+    let sent = 0;
+    let failed = 0;
+    for (const draft of drafts) {
+      try {
+        const res = await fetch("/api/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ to: draft.to, subject: draft.subject, body: draft.body, htmlBody: draft.htmlBody }),
+        });
+        if (res.ok) sent++;
+        else failed++;
+      } catch {
+        failed++;
+      }
+    }
+    setIsSendingAll(false);
+    if (failed === 0) {
+      toast.success(`Sent ${sent} emails via Resend`);
+    } else {
+      toast.error(`Sent ${sent}, failed ${failed}`);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
@@ -215,6 +255,18 @@ export default function Dashboard() {
           </div>
           <div className="ml-auto flex items-center gap-2">
             <Badge variant="outline">{drafts.length} drafts</Badge>
+            {drafts.length > 0 && (
+              <>
+                <Button size="sm" variant="outline" onClick={handleOpenAll} disabled={isSendingAll}>
+                  <Mail className="h-4 w-4" />
+                  Open All ({drafts.length})
+                </Button>
+                <Button size="sm" onClick={handleSendAll} disabled={isSendingAll}>
+                  <Send className="h-4 w-4" />
+                  {isSendingAll ? "Sending…" : `Send All (${drafts.length})`}
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </header>
