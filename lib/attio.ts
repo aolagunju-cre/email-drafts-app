@@ -1,7 +1,9 @@
-// Attio API Helpers
+# Attio API Helpers
 
 const ATTIO_API_KEY = process.env.ATTIO_API_KEY!
-const ATTIO_WORKSPACE = 'ola-real-estate'
+
+// The Prospect List to pull contacts from
+const PROSPECT_LIST_ID = process.env.ATTIO_PROSPECT_LIST_ID || '94f88d4f-4334-49a6-b514-a2ec366898ee'
 
 export interface AttioContact {
   record_id: string
@@ -39,31 +41,30 @@ function parseDraftNote(body: string): DraftEmail | null {
   return draft as DraftEmail
 }
 
-// Get all pending drafts from Attio (contacts with a DRAFT| note not yet marked SENT)
-export async function getDraftsFromAttio(): Promise<DraftEmail[]> {
+// Fetch contacts from the Prospect List only
+async function getContactsFromProspectList(): Promise<any[]> {
   const response = await fetch(
-    `https://api.attio.com/v2/objects/people/records/query?limit=100`,
+    `https://api.attio.com/v2/lists/${PROSPECT_LIST_ID}/records?limit=100`,
     {
-      method: 'POST',
+      method: 'GET',
       headers: {
         'Authorization': `Bearer ${ATTIO_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        object: 'person',
-        filters: [],
-        sort: [],
-        limit: 100,
-      }),
     }
   )
 
   if (!response.ok) {
-    throw new Error(`Attio API error: ${response.status}`)
+    throw new Error(`Attio List API error: ${response.status}`)
   }
 
   const data = await response.json()
-  const people = data.data || []
+  return data.data || []
+}
+
+// Get all pending drafts from Attio (contacts in Prospect List with a DRAFT| note not yet marked SENT)
+export async function getDraftsFromAttio(): Promise<DraftEmail[]> {
+  const people = await getContactsFromProspectList()
   const drafts: DraftEmail[] = []
 
   for (const person of people) {
@@ -83,113 +84,42 @@ export async function getDraftsFromAttio(): Promise<DraftEmail[]> {
   return drafts
 }
 
-// Fetch contacts that haven't been drafted yet
+// Fetch contacts from Prospect List that haven't been drafted yet
 export async function getUndraftedContacts(limit = 10): Promise<AttioContact[]> {
-  // First, query all people and filter by those without a "drafted" note
-  // We use the notes attribute as a proxy for draft status
-  const response = await fetch(
-    `https://api.attio.com/v2/objects/people/records/query?limit=100`,
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${ATTIO_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        object: 'person',
-        filters: [],
-        sort: [],
-        limit: 100,
-      }),
-    }
-  )
+  const people = await getContactsFromProspectList()
 
-  if (!response.ok) {
-    throw new Error(`Attio API error: ${response.status}`)
-  }
-
-  const data = await response.json()
-  return (data.data || []).map((person: any) => {
-    const name = person.values?.name?.[0]
-    const emailEntry = person.values?.email_addresses?.[0]
-    const companyRef = person.values?.company?.[0]
-    const location = person.values?.primary_location?.[0]?.locality || ''
-
-    return {
-      record_id: person.id.record_id,
-      name: name ? `${name.first_name || ''} ${name.last_name || ''}`.trim() : 'Unknown',
-      email: emailEntry?.email_address || '',
-      company: companyRef?.id || '',
-      job_title: person.values?.job_title?.[0]?.value || '',
-      location,
-    }
+  // Filter out contacts that already have a [DRAFTED] or [SENT] note
+  const undrafted = people.filter((person: any) => {
+    const notes: any[] = person.values?.notes || []
+    const hasDrafted = notes.some(
+      (n: any) => n.body?.startsWith('[DRAFTED') || n.body?.startsWith('[SENT')
+    )
+    return !hasDrafted
   })
+
+  return undrafted
+    .map((person: any) => {
+      const name = person.values?.name?.[0]
+      const emailEntry = person.values?.email_addresses?.[0]
+      const companyRef = person.values?.company?.[0]
+      const location = person.values?.primary_location?.[0]?.locality || ''
+
+      return {
+        record_id: person.id.record_id,
+        name: name ? `${name.first_name || ''} ${name.last_name || ''}`.trim() : 'Unknown',
+        email: emailEntry?.email_address || '',
+        company: companyRef?.title || '',
+        job_title: person.values?.job_title?.[0]?.value || '',
+        location,
+      }
+    })
+    .filter((c: AttioContact) => c.email)
+    .slice(0, limit)
 }
 
-// Fisher-Yates shuffle
-function shuffle<T>(array: T[]): T[] {
-  const arr = [...array];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
-
-// Get N random contacts from Attio who have emails
-export async function getRandomContacts(limit = 10): Promise<AttioContact[]> {
-  const allContacts = await getUndraftedContacts(100)
-  const withEmails = allContacts.filter((c) => c.email);
-  return shuffle(withEmails).slice(0, limit);
-}
-
-// Get contacts by IDs
-export async function getContactsByIds(recordIds: string[]): Promise<AttioContact[]> {
-  const response = await fetch(
-    `https://api.attio.com/v2/objects/people/records/query`,
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${ATTIO_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        object: 'person',
-        filters: [
-          {
-            attribute: 'record_id',
-            filter: {
-              type: 'any',
-              value: recordIds,
-            },
-          },
-        ],
-        sort: [],
-        limit: recordIds.length,
-      }),
-    }
-  )
-
-  if (!response.ok) {
-    throw new Error(`Attio API error: ${response.status}`)
-  }
-
-  const data = await response.json()
-  return (data.data || []).map((person: any) => {
-    const name = person.values?.name?.[0]
-    const emailEntry = person.values?.email_addresses?.[0]
-    const companyRef = person.values?.company?.[0]
-    const location = person.values?.primary_location?.[0]?.locality || ''
-
-    return {
-      record_id: person.id.record_id,
-      name: name ? `${name.first_name || ''} ${name.last_name || ''}`.trim() : 'Unknown',
-      email: emailEntry?.email_address || '',
-      company: companyRef?.title || '',
-      job_title: person.values?.job_title?.[0]?.value || '',
-      location,
-    }
-  })
+// Get the 10 most recently added contacts without drafts from Prospect List
+export async function getTodaysContacts(limit = 10): Promise<AttioContact[]> {
+  return getUndraftedContacts(limit)
 }
 
 // Add a note (draft email) to a contact record
@@ -216,8 +146,7 @@ export async function addDraftNoteToContact(
   }
 }
 
-// Mark a contact as drafted by adding a tag or note
+// Mark a contact as drafted
 export async function markContactDrafted(recordId: string): Promise<void> {
-  // We'll add a note that says "DRAFTED" so we can filter them out next time
   await addDraftNoteToContact(recordId, '[DRAFTED — DO NOT USE AGAIN]')
 }
