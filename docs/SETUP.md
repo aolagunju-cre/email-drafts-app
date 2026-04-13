@@ -33,14 +33,15 @@ vercel --prod
 
 ### 2. Add environment variables in Vercel dashboard
 
-Go to your project → Settings → Environment Variables and add:
-
 | Variable | Value |
 |---|---|
 | `ATTIO_API_KEY` | `ed1b79023895fcf8c37083aad62e8f834487ab3bfb0707374f1268779dcf33a4` |
+| `ATTIO_PROSPECT_LIST_ID` | `94f88d4f-4334-49a6-b514-a2ec366898ee` |
 | `AUTH_PASSWORD` | Your chosen password (e.g. `Calgary2026!`) |
 | `TELEGRAM_BOT_TOKEN` | Your Telegram bot token |
 | `TELEGRAM_CHAT_ID` | Your Telegram chat ID |
+
+Go to your project → Settings → Environment Variables and add the 5 variables above.
 
 ### 3. Deploy
 ```bash
