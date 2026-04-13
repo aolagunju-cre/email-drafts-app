@@ -128,6 +128,7 @@ export async function getUndraftedContacts(limit = 10): Promise<AttioContact[]> 
       }
     })
     .filter((c: AttioContact) => c.email)
+    .sort(() => Math.random() - 0.5) // shuffle so each run gets different contacts
     .slice(0, limit)
 }
 
