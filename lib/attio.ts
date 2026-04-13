@@ -150,3 +150,6 @@ export async function addDraftNoteToContact(
 export async function markContactDrafted(recordId: string): Promise<void> {
   await addDraftNoteToContact(recordId, '[DRAFTED — DO NOT USE AGAIN]')
 }
+
+// Alias for getTodaysContacts (used by the contacts API route)
+export const getRandomContacts = getTodaysContacts
