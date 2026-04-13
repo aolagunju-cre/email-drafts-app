@@ -41,21 +41,35 @@ function parseDraftNote(body: string): DraftEmail | null {
   return draft as DraftEmail
 }
 
-// Fetch contacts from the Prospect List only
+// Fetch contacts from the Prospect List only via the objects query API
 async function getContactsFromProspectList(): Promise<any[]> {
   const response = await fetch(
-    `https://api.attio.com/v2/lists/${PROSPECT_LIST_ID}/records?limit=100`,
+    `https://api.attio.com/v2/objects/people/records/query?limit=100`,
     {
-      method: 'GET',
+      method: 'POST',
       headers: {
         'Authorization': `Bearer ${ATTIO_API_KEY}`,
         'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        object: 'person',
+        filters: [
+          {
+            attribute: 'lists',
+            filter: {
+              type: 'any',
+              value: [PROSPECT_LIST_ID],
+            },
+          },
+        ],
+        sort: [],
+        limit: 100,
+      }),
     }
   )
 
   if (!response.ok) {
-    throw new Error(`Attio List API error: ${response.status}`)
+    throw new Error(`Attio API error: ${response.status}`)
   }
 
   const data = await response.json()
