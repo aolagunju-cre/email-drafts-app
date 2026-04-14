@@ -34,9 +34,11 @@ Hope you're doing well. Not sure if you're the right person at ${company || "you
 
 My name is Abdul-Samad Olagunju, and I'm a corporate real estate advisor at Cresa focused on helping tenants reduce costs and find the right fit in terms of their space. We recently helped a different firm save 10% on their lease costs by proactively looking at options in the market, so I thought it might be useful to share this opportunity with your team.
 
-${additionalContext ? additionalContext + "\n\n" : ""}${propertyInterest ? propertyInterest + "\n\n" : ""}If this isn't a fit, feel free to share your criteria such as size, budget, location, and timing, and I can keep an eye out for opportunities that align. And if you'd prefer not to receive these, just let me know.
+We have a client who has excess space at Eighth Avenue Place here in Calgary, and is open to subleasing the fully furnished space, depending on your current situation.
 
-Best,`;
+If this isn't a fit, feel free to share your criteria such as size, budget, location, and timing, and I can keep an eye out for opportunities that align. And if you'd prefer not to receive these, just let me know.
+
+Best,
 
   return { subject, body };
 }
