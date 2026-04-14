@@ -25,6 +25,7 @@ import {
   Sparkles,
   Users,
   RefreshCw,
+  ExternalLink,
 } from "lucide-react";
 
 interface Draft {
@@ -34,6 +35,7 @@ interface Draft {
   body: string;
   status: "generated" | "edited";
   name?: string;
+  web_url?: string;
 }
 
 interface AttioContact {
@@ -42,6 +44,7 @@ interface AttioContact {
   email: string;
   company: string;
   job_title: string;
+  web_url: string;
 }
 
 function buildMailto(to: string, subject: string, body: string): string {
@@ -117,6 +120,7 @@ export default function Dashboard() {
           body: draft.body,
           status: "generated" as const,
           name: contacts[i]?.name || "",
+          web_url: contacts[i]?.web_url || "",
         })
       );
 
@@ -386,6 +390,18 @@ export default function Dashboard() {
                       </CardDescription>
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
+                      {draft.web_url && (
+                        <a
+                          href={draft.web_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <Button size="sm" variant="ghost">
+                            <ExternalLink className="h-4 w-4" />
+                            Attio
+                          </Button>
+                        </a>
+                      )}
                       <Button
                         size="sm"
                         variant="outline"
