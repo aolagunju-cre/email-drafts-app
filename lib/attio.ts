@@ -25,7 +25,7 @@ export interface DraftEmail {
 // ─────────────────────────────────────────────────────────────────────────────
 // Step 1: Query list entries where Call, VM, Meeting, Email are ALL unchecked
 // ─────────────────────────────────────────────────────────────────────────────
-async function getUncheckedEntryRecordIds(): Promise<string[]> {
+export async function getUncheckedEntryRecordIds(): Promise<string[]> {
   const response = await fetch(
     `https://api.attio.com/v2/lists/call_list/entries/query`,
     {
@@ -62,7 +62,7 @@ async function getUncheckedEntryRecordIds(): Promise<string[]> {
 // ─────────────────────────────────────────────────────────────────────────────
 // Step 2: Batch-fetch person records by their record_ids
 // ─────────────────────────────────────────────────────────────────────────────
-async function getPeopleByRecordIds(recordIds: string[]): Promise<any[]> {
+export async function getPeopleByRecordIds(recordIds: string[]): Promise<any[]> {
   if (recordIds.length === 0) return []
 
   const response = await fetch(
