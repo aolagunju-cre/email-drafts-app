@@ -38,7 +38,7 @@ We have a client who has excess space at Eighth Avenue Place here in Calgary, an
 
 If this isn't a fit, feel free to share your criteria such as size, budget, location, and timing, and I can keep an eye out for opportunities that align. And if you'd prefer not to receive these, just let me know.
 
-Best,
+Best,`;
 
   return { subject, body };
 }
@@ -83,8 +83,10 @@ export async function POST(request: Request) {
       prospectBody.additionalContext || ""
     );
 
+    const toEmail = prospectBody.prospectName.toLowerCase().replace(/\s+/g, '.')
+    const toDomain = (prospectBody.prospectCompany || 'company').toLowerCase().replace(/\s+/g, '')
     const draft = {
-      to: `${prospectBody.prospectName.toLowerCase().replace(/\s+/g, ".")}@${(prospectBody.prospectCompany || "company").toLowerCase().replace(/\s+/g, "")}.com`,
+      to: `${toEmail}@${toDomain}.com`,
       subject,
       body: emailBody,
     };
