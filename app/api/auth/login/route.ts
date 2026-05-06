@@ -1,19 +1,12 @@
-import { NextResponse } from 'next/server'
+import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 
 export async function POST(request: Request) {
-  const formData = await request.formData()
-  const password = formData.get('password')
-
-  if (password === process.env.AUTH_PASSWORD) {
-    const response = NextResponse.redirect(new URL('/dashboard', request.url))
-    response.cookies.set('auth', 'ok', {
-      httpOnly: true,
-      sameSite: 'strict',
-      path: '/',
-      maxAge: 60 * 60 * 24 * 7, // 1 week
-    })
-    return response
+  const { password } = await request.json();
+  if (password === process.env.AUTH_PASSWORD!) {
+    const cookieStore = await cookies();
+    cookieStore.set("auth", "1", { httpOnly: true, sameSite: "lax", maxAge: 60 * 60 * 24 });
+    return NextResponse.json({ ok: true });
   }
-
-  return NextResponse.redirect(new URL('/login?error=1', request.url))
+  return NextResponse.json({ error: "Invalid password" }, { status: 401 });
 }
