@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import styles from "./dashboard.module.css";
 
 interface Draft {
@@ -9,6 +9,17 @@ interface Draft {
   subject: string;
   body: string;
   status: "draft" | "generated" | "edited";
+}
+
+interface Prospect {
+  recordId: string;
+  name: string;
+  email: string;
+  title: string;
+  companyName: string;
+  phone: string;
+  location: string;
+  entryId: string;
 }
 
 interface GenerateFormData {
@@ -25,9 +36,13 @@ function buildMailto(to: string, subject: string, body: string): string {
 }
 
 export default function Dashboard() {
+  const [prospects, setProspects] = useState<Prospect[]>([]);
+  const [loadingProspects, setLoadingProspects] = useState(true);
+  const [prospectsError, setProspectsError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [editingDraft, setEditingDraft] = useState<Draft | null>(null);
+  const [activeProspect, setActiveProspect] = useState<Prospect | null>(null);
   const [formData, setFormData] = useState<GenerateFormData>({
     prospectName: "",
     prospectCompany: "",
@@ -36,18 +51,44 @@ export default function Dashboard() {
   });
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  const stats = {
-    total: drafts.length,
-    draft: drafts.filter((d) => d.status === "draft").length,
-    generated: drafts.filter((d) => d.status === "generated").length,
-    edited: drafts.filter((d) => d.status === "edited").length,
+  // Load prospects from Attio on mount
+  useEffect(() => {
+    fetch("/api/prospects")
+      .then((r) => {
+        if (r.status === 401) {
+          window.location.href = "/login";
+          return null;
+        }
+        return r.json();
+      })
+      .then((data) => {
+        if (!data) return;
+        if (data.error) {
+          setProspectsError(data.error);
+        } else {
+          setProspects(data.prospects || []);
+        }
+      })
+      .catch((err) => setProspectsError(err.message))
+      .finally(() => setLoadingProspects(false));
+  }, []);
+
+  const handleSelectProspect = (prospect: Prospect) => {
+    setActiveProspect(prospect);
+    setFormData({
+      prospectName: prospect.name,
+      prospectCompany: prospect.companyName,
+      propertyInterest: "",
+      additionalContext: "",
+    });
+    setDrafts([]);
+    setMessage(null);
   };
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsGenerating(true);
     setMessage(null);
-    setDrafts([]);
 
     try {
       const response = await fetch("/api/generate", {
@@ -57,7 +98,6 @@ export default function Dashboard() {
       });
 
       const data = await response.json();
-
       if (!response.ok) throw new Error(data.error || "Generation failed");
 
       const newDrafts: Draft[] = data.drafts.map(
@@ -71,7 +111,7 @@ export default function Dashboard() {
       );
 
       setDrafts(newDrafts);
-      setMessage({ type: "success", text: `${newDrafts.length} drafts generated! Review and click "Open in Email" to send.` });
+      setMessage({ type: "success", text: `${newDrafts.length} draft generated for ${formData.prospectName}. Review and click "Open in Email".` });
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "Failed to generate drafts";
       setMessage({ type: "error", text: errorMessage });
@@ -80,37 +120,27 @@ export default function Dashboard() {
     }
   };
 
-  const handleEditDraft = (draft: Draft) => {
-    setEditingDraft({ ...draft });
-  };
+  const handleEditDraft = (draft: Draft) => setEditingDraft({ ...draft });
 
   const handleSaveEdit = () => {
-    if (editingDraft) {
-      setDrafts((prev) =>
-        prev.map((d) =>
-          d.id === editingDraft.id ? { ...editingDraft, status: "edited" as const } : d
-        )
-      );
-      setEditingDraft(null);
-      setMessage({ type: "success", text: "Draft updated!" });
-    }
+    if (!editingDraft) return;
+    setDrafts((prev) =>
+      prev.map((d) => d.id === editingDraft.id ? { ...editingDraft, status: "edited" as const } : d)
+    );
+    setEditingDraft(null);
+    setMessage({ type: "success", text: "Draft updated!" });
   };
 
   const handleOpenInEmail = (draft: Draft) => {
-    const mailtoUrl = buildMailto(draft.to, draft.subject, draft.body);
-    window.location.href = mailtoUrl;
-    // Mark as opened (user will send manually from their email client)
+    window.location.href = buildMailto(draft.to, draft.subject, draft.body);
     setDrafts((prev) =>
-      prev.map((d) =>
-        d.id === draft.id ? { ...d, status: "draft" as const } : d
-      )
+      prev.map((d) => d.id === draft.id ? { ...d, status: "draft" as const } : d)
     );
     setMessage({ type: "success", text: `Opening ${draft.to} in your email client...` });
   };
 
-  const handleDeleteDraft = (draftId: string) => {
+  const handleDeleteDraft = (draftId: string) =>
     setDrafts((prev) => prev.filter((d) => d.id !== draftId));
-  };
 
   return (
     <div className={styles.container}>
@@ -122,12 +152,7 @@ export default function Dashboard() {
             <span className={styles.brandName}>Email Drafts</span>
           </div>
           <nav className={styles.nav}>
-            <a href="/dashboard" className={styles.navLinkActive}>
-              Dashboard
-            </a>
-            <a href="/dashboard/emails" className={styles.navLink}>
-              Emails
-            </a>
+            <a href="/dashboard" className={styles.navLinkActive}>Dashboard</a>
           </nav>
         </div>
       </header>
@@ -135,89 +160,105 @@ export default function Dashboard() {
       <main className={styles.main}>
         <h1 className={styles.pageTitle}>Email Draft Generator</h1>
 
-        {/* Stats */}
-        <div className={styles.statsGrid}>
-          <div className={styles.statCard}>
-            <div className={styles.statLabel}>Total Drafts</div>
-            <div className={styles.statValue}>{stats.total}</div>
-          </div>
-          <div className={styles.statCard}>
-            <div className={styles.statLabel}>Ready to Send</div>
-            <div className={styles.statValue}>{stats.generated + stats.edited}</div>
-          </div>
-        </div>
-
-        {/* Message */}
         {message && (
           <div className={message.type === "error" ? styles.error : styles.success}>
             {message.text}
           </div>
         )}
 
-        {/* Generate Form */}
+        {/* Prospect selector */}
         <div className={styles.section}>
           <div className={styles.sectionHeader}>
-            <h2 className={styles.sectionTitle}>Generate Email Drafts</h2>
+            <h2 className={styles.sectionTitle}>Email Campaign Prospects</h2>
           </div>
           <div className={styles.sectionContent}>
-            <form onSubmit={handleGenerate} className={styles.generateForm}>
-              <div className={styles.formGrid}>
-                <div className={styles.formGroup}>
-                  <label className={styles.formLabel}>Prospect Name *</label>
-                  <input
-                    type="text"
-                    className={styles.formInput}
-                    value={formData.prospectName}
-                    onChange={(e) => setFormData({ ...formData, prospectName: e.target.value })}
-                    placeholder="John Smith"
-                    required
-                  />
-                </div>
-                <div className={styles.formGroup}>
-                  <label className={styles.formLabel}>Company *</label>
-                  <input
-                    type="text"
-                    className={styles.formInput}
-                    value={formData.prospectCompany}
-                    onChange={(e) => setFormData({ ...formData, prospectCompany: e.target.value })}
-                    placeholder="Acme Corp"
-                    required
-                  />
-                </div>
-                <div className={styles.formGroup}>
-                  <label className={styles.formLabel}>Property Interest</label>
-                  <input
-                    type="text"
-                    className={styles.formInput}
-                    value={formData.propertyInterest}
-                    onChange={(e) => setFormData({ ...formData, propertyInterest: e.target.value })}
-                    placeholder="Downtown Calgary office space"
-                  />
-                </div>
-                <div className={styles.formGroupFull}>
-                  <label className={styles.formLabel}>Additional Context</label>
-                  <textarea
-                    className={styles.formTextarea}
-                    value={formData.additionalContext}
-                    onChange={(e) => setFormData({ ...formData, additionalContext: e.target.value })}
-                    placeholder="Any specific details about the prospect, their needs, or what you want to emphasize..."
-                    rows={3}
-                  />
-                </div>
+            {loadingProspects ? (
+              <p className={styles.emptyState}>Loading prospects from Attio...</p>
+            ) : prospectsError ? (
+              <p className={styles.error}>Error: {prospectsError}</p>
+            ) : prospects.length === 0 ? (
+              <p className={styles.emptyState}>No prospects with Email_Campaign checked in Attio.</p>
+            ) : (
+              <div className={styles.prospectsGrid}>
+                {prospects.map((p) => (
+                  <div
+                    key={p.recordId}
+                    className={`${styles.prospectCard} ${activeProspect?.recordId === p.recordId ? styles.prospectCardActive : ""}`}
+                    onClick={() => handleSelectProspect(p)}
+                  >
+                    <div className={styles.prospectName}>{p.name}</div>
+                    <div className={styles.prospectMeta}>{p.title}</div>
+                    <div className={styles.prospectMeta}>{p.companyName}</div>
+                    <div className={styles.prospectEmail}>{p.email}</div>
+                    {activeProspect?.recordId === p.recordId && (
+                      <div className={styles.prospectActiveBadge}>✓ Selected</div>
+                    )}
+                  </div>
+                ))}
               </div>
-              <button type="submit" className={styles.generateButton} disabled={isGenerating}>
-                {isGenerating ? (
-                  <>
-                    <span className={styles.spinner}></span>
-                    Generating...
-                  </>
-                ) : (
-                  "Generate Drafts"
-                )}
-              </button>
-            </form>
+            )}
           </div>
         </div>
+
+        {/* Generate Form — shown when a prospect is selected */}
+        {activeProspect && (
+          <div className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <h2 className={styles.sectionTitle}>
+                Generate for {activeProspect.name}
+              </h2>
+            </div>
+            <div className={styles.sectionContent}>
+              <form onSubmit={handleGenerate} className={styles.generateForm}>
+                <div className={styles.formGrid}>
+                  <div className={styles.formGroup}>
+                    <label className={styles.formLabel}>Prospect Name *</label>
+                    <input
+                      type="text"
+                      className={styles.formInput}
+                      value={formData.prospectName}
+                      onChange={(e) => setFormData({ ...formData, prospectName: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label className={styles.formLabel}>Company *</label>
+                    <input
+                      type="text"
+                      className={styles.formInput}
+                      value={formData.prospectCompany}
+                      onChange={(e) => setFormData({ ...formData, prospectCompany: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label className={styles.formLabel}>Property Interest</label>
+                    <input
+                      type="text"
+                      className={styles.formInput}
+                      value={formData.propertyInterest}
+                      onChange={(e) => setFormData({ ...formData, propertyInterest: e.target.value })}
+                      placeholder="e.g. Downtown Calgary office, Class A"
+                    />
+                  </div>
+                  <div className={styles.formGroupFull}>
+                    <label className={styles.formLabel}>Additional Context</label>
+                    <textarea
+                      className={styles.formTextarea}
+                      value={formData.additionalContext}
+                      onChange={(e) => setFormData({ ...formData, additionalContext: e.target.value })}
+                      placeholder="Any specific details about their needs, budget, timeline..."
+                      rows={3}
+                    />
+                  </div>
+                </div>
+                <button type="submit" className={styles.generateButton} disabled={isGenerating}>
+                  {isGenerating ? "Generating..." : "Generate Draft"}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
 
         {/* Generated Drafts */}
         {drafts.length > 0 && (
@@ -235,32 +276,17 @@ export default function Dashboard() {
                     <div className={styles.draftActions}>
                       {["generated", "edited"].includes(draft.status) && (
                         <>
-                          <button className={styles.actionButton} onClick={() => handleEditDraft(draft)}>
-                            Edit
-                          </button>
-                          <button className={styles.actionButtonPrimary} onClick={() => handleOpenInEmail(draft)}>
-                            Open in Email
-                          </button>
+                          <button className={styles.actionButton} onClick={() => handleEditDraft(draft)}>Edit</button>
+                          <button className={styles.actionButtonPrimary} onClick={() => handleOpenInEmail(draft)}>Open in Email</button>
                         </>
                       )}
-                      <button className={styles.actionButtonDanger} onClick={() => handleDeleteDraft(draft.id)}>
-                        Delete
-                      </button>
+                      <button className={styles.actionButtonDanger} onClick={() => handleDeleteDraft(draft.id)}>Delete</button>
                     </div>
                   </div>
                   <div className={styles.draftBody}>
-                    <div className={styles.draftField}>
-                      <span className={styles.draftLabel}>To:</span>
-                      <span className={styles.draftValue}>{draft.to}</span>
-                    </div>
-                    <div className={styles.draftField}>
-                      <span className={styles.draftLabel}>Subject:</span>
-                      <span className={styles.draftValue}>{draft.subject}</span>
-                    </div>
-                    <div className={styles.draftField}>
-                      <span className={styles.draftLabel}>Body:</span>
-                      <pre className={styles.draftBodyText}>{draft.body}</pre>
-                    </div>
+                    <div className={styles.draftField}><span className={styles.draftLabel}>To:</span><span className={styles.draftValue}>{draft.to}</span></div>
+                    <div className={styles.draftField}><span className={styles.draftLabel}>Subject:</span><span className={styles.draftValue}>{draft.subject}</span></div>
+                    <div className={styles.draftField}><span className={styles.draftLabel}>Body:</span><pre className={styles.draftBodyText}>{draft.body}</pre></div>
                   </div>
                 </div>
               ))}
@@ -276,38 +302,22 @@ export default function Dashboard() {
             <h2 className={styles.modalTitle}>Edit Draft</h2>
             <div className={styles.formGroup}>
               <label className={styles.formLabel}>To:</label>
-              <input
-                type="text"
-                className={styles.formInput}
-                value={editingDraft.to}
-                onChange={(e) => setEditingDraft({ ...editingDraft, to: e.target.value })}
-              />
+              <input type="text" className={styles.formInput} value={editingDraft.to}
+                onChange={(e) => setEditingDraft({ ...editingDraft, to: e.target.value })} />
             </div>
             <div className={styles.formGroup}>
               <label className={styles.formLabel}>Subject:</label>
-              <input
-                type="text"
-                className={styles.formInput}
-                value={editingDraft.subject}
-                onChange={(e) => setEditingDraft({ ...editingDraft, subject: e.target.value })}
-              />
+              <input type="text" className={styles.formInput} value={editingDraft.subject}
+                onChange={(e) => setEditingDraft({ ...editingDraft, subject: e.target.value })} />
             </div>
             <div className={styles.formGroup}>
               <label className={styles.formLabel}>Body:</label>
-              <textarea
-                className={styles.formTextarea}
-                value={editingDraft.body}
-                onChange={(e) => setEditingDraft({ ...editingDraft, body: e.target.value })}
-                rows={10}
-              />
+              <textarea className={styles.formTextarea} value={editingDraft.body}
+                onChange={(e) => setEditingDraft({ ...editingDraft, body: e.target.value })} rows={10} />
             </div>
             <div className={styles.modalActions}>
-              <button className={styles.actionButton} onClick={() => setEditingDraft(null)}>
-                Cancel
-              </button>
-              <button className={styles.actionButtonPrimary} onClick={handleSaveEdit}>
-                Save & Open in Email
-              </button>
+              <button className={styles.actionButton} onClick={() => setEditingDraft(null)}>Cancel</button>
+              <button className={styles.actionButtonPrimary} onClick={handleSaveEdit}>Save &amp; Open in Email</button>
             </div>
           </div>
         </div>
