@@ -7,70 +7,40 @@ interface Contact {
   job_title?: string;
 }
 
-async function generateDraft(
-  name: string,
-  email: string,
-  company: string,
-  propertyInterest: string,
-  additionalContext: string,
-): Promise<{ to: string; subject: string; body: string }> {
-  const prompt = `You are a Calgary commercial real estate broker writing a cold email to a prospective tenant.
+function firstName(fullName: string): string {
+  return fullName.trim().split(/\s+/)[0] || fullName;
+}
 
-Prospect: ${name} at ${company}.
-${propertyInterest ? `Property interest: ${propertyInterest}` : ""}
-${additionalContext ? `Additional context: ${additionalContext}` : ""}
-
-Write a short, personable cold email (under 150 words). No generic openers. Reference the prospect's company specifically if possible. End with a clear next step. No bullet points. Plain text only.`;
-
-  let body = "";
-  try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: 300,
-      }),
-    });
-    const data = await res.json();
-    body = data.choices?.[0]?.message?.content?.trim() || "";
-  } catch {
-    body = `Hi ${name},\n\nI came across ${company} and thought of reaching out directly. We're working with a few landlords in Calgary who have compelling office opportunities that could be a strong fit.\n\nHappy to share details if you're open to it.\n\nBest,\nAbdul-Samad Olagunju\nCresa Calgary`;
-  }
-
+function buildDraft(name: string, email: string, company: string) {
   return {
     to: email,
-    subject: `Offices in Calgary — ${company}`,
-    body,
+    subject: `Supporting ${company} from Cresa`,
+    body: `Hey ${firstName(name)},
+
+Not sure if you'd be the right person to connect with on this, but this typically falls under whoever oversees office or real estate decisions internally.
+
+We currently have a client with an additional 3,500 SF of office space that could present a good opportunity, so I wanted to pass it along to your team.
+
+If it's not relevant, feel free to send over your criteria such as size, budget, location, and timing, and I can keep an eye out for opportunities that align. If you'd prefer not to receive these, just reply 1.
+
+Best,
+Abdul-Samad Olagunju
+Cresa Calgary`,
   };
 }
 
 export async function POST(request: Request) {
   const payload = await request.json();
-  const { propertyInterest = "", additionalContext = "" } = payload;
 
-  // Auto-generate path: contacts array sent by the dashboard
+  // Auto-generate path: contacts array from the dashboard
   if (Array.isArray(payload.contacts) && payload.contacts.length > 0) {
-    const drafts = await Promise.all(
-      (payload.contacts as Contact[]).map((c) =>
-        generateDraft(c.name, c.email, c.company, propertyInterest, additionalContext),
-      ),
+    const drafts = (payload.contacts as Contact[]).map((c) =>
+      buildDraft(c.name, c.email, c.company),
     );
     return NextResponse.json({ drafts });
   }
 
   // Manual-generate path: individual scalar fields
   const { prospectName = "", prospectEmail = "", prospectCompany = "" } = payload;
-  const draft = await generateDraft(
-    prospectName,
-    prospectEmail,
-    prospectCompany,
-    propertyInterest,
-    additionalContext,
-  );
-  return NextResponse.json({ drafts: [draft] });
+  return NextResponse.json({ drafts: [buildDraft(prospectName, prospectEmail, prospectCompany)] });
 }

@@ -128,6 +128,15 @@ export async function markEmailSent(entryId: string) {
 
 // ─── Internal helpers ────────────────────────────────────────────────────────────
 
+export async function getWorkspaceSlug(): Promise<string | null> {
+  try {
+    const data = await attioFetch<{ data: { workspace_slug: string } }>("/self");
+    return data.data?.workspace_slug || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getPerson(recordId: string): Promise<AttioPerson> {
   const data = await attioFetch<{ data: { values: AttioPerson } }>(
     `/objects/people/records/${recordId}`,
