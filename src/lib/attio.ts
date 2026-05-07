@@ -62,7 +62,7 @@ interface AttioCompany {
  * These are the people queued for the email campaign.
  * After sending, mark them via markEmailSent() to update the Email checkbox.
  */
-export async function getEmailCampaignProspects(): Promise<ColdOutreachProspect[]> {
+export async function getEmailCampaignProspects(limit = 100): Promise<ColdOutreachProspect[]> {
   const entriesData = await attioFetch<{ data: AttioListEntry[] }>(
     `/lists/${ATTIO_PROSPECT_LIST_ID}/entries/query`,
     {
@@ -74,7 +74,7 @@ export async function getEmailCampaignProspects(): Promise<ColdOutreachProspect[
             { email_campaign: { value: { $eq: true } } },
           ],
         },
-        limit: 100,
+        limit,
       }),
     },
   );

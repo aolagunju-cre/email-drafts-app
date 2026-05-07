@@ -24,6 +24,7 @@ interface Prospect {
 
 interface GenerateFormData {
   prospectName: string;
+  prospectEmail: string;
   prospectCompany: string;
   propertyInterest: string;
   additionalContext: string;
@@ -39,12 +40,14 @@ export default function Dashboard() {
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [loadingProspects, setLoadingProspects] = useState(true);
   const [prospectsError, setProspectsError] = useState<string | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [isAutoGenerating, setIsAutoGenerating] = useState(false);
+  const [isManualGenerating, setIsManualGenerating] = useState(false);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [editingDraft, setEditingDraft] = useState<Draft | null>(null);
   const [activeProspect, setActiveProspect] = useState<Prospect | null>(null);
   const [formData, setFormData] = useState<GenerateFormData>({
     prospectName: "",
+    prospectEmail: "",
     prospectCompany: "",
     propertyInterest: "",
     additionalContext: "",
@@ -77,6 +80,7 @@ export default function Dashboard() {
     setActiveProspect(prospect);
     setFormData({
       prospectName: prospect.name,
+      prospectEmail: prospect.email,
       prospectCompany: prospect.companyName,
       propertyInterest: "",
       additionalContext: "",
@@ -87,7 +91,7 @@ export default function Dashboard() {
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsGenerating(true);
+    setIsManualGenerating(true);
     setMessage(null);
 
     try {
@@ -103,7 +107,7 @@ export default function Dashboard() {
       const newDrafts: Draft[] = data.drafts.map(
         (draft: { to: string; subject: string; body: string }, i: number) => ({
           id: `draft-${Date.now()}-${i}`,
-          to: draft.to || formData.prospectName,
+          to: draft.to || formData.prospectEmail || formData.prospectName,
           subject: draft.subject,
           body: draft.body,
           status: "generated" as const,
@@ -116,7 +120,7 @@ export default function Dashboard() {
       const errorMessage = err instanceof Error ? err.message : "Failed to generate drafts";
       setMessage({ type: "error", text: errorMessage });
     } finally {
-      setIsGenerating(false);
+      setIsManualGenerating(false);
     }
   };
 
@@ -132,11 +136,26 @@ export default function Dashboard() {
   };
 
   const handleOpenInEmail = (draft: Draft) => {
-    window.location.href = buildMailto(draft.to, draft.subject, draft.body);
+    // Use anchor trick — window.location.href kills the event loop after the first open
+    const a = document.createElement("a");
+    a.href = buildMailto(draft.to, draft.subject, draft.body);
+    a.click();
     setDrafts((prev) =>
       prev.map((d) => d.id === draft.id ? { ...d, status: "draft" as const } : d)
     );
     setMessage({ type: "success", text: `Opening ${draft.to} in your email client...` });
+  };
+
+  const handleOpenAll = () => {
+    if (drafts.length === 0) return;
+    drafts.forEach((draft, i) => {
+      setTimeout(() => {
+        const a = document.createElement("a");
+        a.href = buildMailto(draft.to, draft.subject, draft.body);
+        a.click();
+      }, i * 1500);
+    });
+    setMessage({ type: "success", text: `Opening ${drafts.length} drafts in your email client…` });
   };
 
   const handleDeleteDraft = (draftId: string) =>
@@ -222,6 +241,16 @@ export default function Dashboard() {
                     />
                   </div>
                   <div className={styles.formGroup}>
+                    <label className={styles.formLabel}>Email *</label>
+                    <input
+                      type="email"
+                      className={styles.formInput}
+                      value={formData.prospectEmail || ""}
+                      onChange={(e) => setFormData({ ...formData, prospectEmail: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className={styles.formGroup}>
                     <label className={styles.formLabel}>Company *</label>
                     <input
                       type="text"
@@ -252,8 +281,8 @@ export default function Dashboard() {
                     />
                   </div>
                 </div>
-                <button type="submit" className={styles.generateButton} disabled={isGenerating}>
-                  {isGenerating ? "Generating..." : "Generate Draft"}
+                <button type="submit" className={styles.generateButton} disabled={isManualGenerating}>
+                  {isManualGenerating ? "Generating..." : "Generate Draft"}
                 </button>
               </form>
             </div>
@@ -265,6 +294,9 @@ export default function Dashboard() {
           <div className={styles.section}>
             <div className={styles.sectionHeader}>
               <h2 className={styles.sectionTitle}>Generated Drafts</h2>
+              <button className={styles.actionButtonPrimary} onClick={handleOpenAll}>
+                Open All ({drafts.length})
+              </button>
             </div>
             <div className={styles.sectionContent}>
               {drafts.map((draft) => (
@@ -317,7 +349,11 @@ export default function Dashboard() {
             </div>
             <div className={styles.modalActions}>
               <button className={styles.actionButton} onClick={() => setEditingDraft(null)}>Cancel</button>
-              <button className={styles.actionButtonPrimary} onClick={handleSaveEdit}>Save &amp; Open in Email</button>
+              <button className={styles.actionButtonPrimary} onClick={() => {
+                const draft = editingDraft;
+                handleSaveEdit();
+                if (draft) handleOpenInEmail(draft);
+              }}>Save &amp; Open in Email</button>
             </div>
           </div>
         </div>
