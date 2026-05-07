@@ -6,7 +6,7 @@ const ATTIO_BASE = "https://api.attio.com/v2";
 // CORE FETCH
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function attioFetch<T = unknown>(
+export async function attioFetch<T = unknown>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
@@ -128,7 +128,7 @@ export async function markEmailSent(entryId: string) {
 
 // ─── Internal helpers ────────────────────────────────────────────────────────────
 
-async function getPerson(recordId: string): Promise<AttioPerson> {
+export async function getPerson(recordId: string): Promise<AttioPerson> {
   const data = await attioFetch<{ data: { values: AttioPerson } }>(
     `/objects/people/records/${recordId}`,
   );
@@ -148,7 +148,7 @@ async function getCompany(recordId: string): Promise<AttioCompany | null> {
 
 // ─── Shared types ──────────────────────────────────────────────────────────────
 
-export interface UncontactedProspect {
+export type { AttioListEntry, AttioValue, AttioPerson, AttioCompany };
   recordId: string;
   name: string;
   email: string;
@@ -159,4 +159,79 @@ export interface UncontactedProspect {
   entryId: string;
   calledToday: boolean;
   hasVm: boolean;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COLD OUTREACH QUERY — prospects who are:
+//   - Status = "Prospect" (not Lead, not Dead, not Customer)
+//   - called_today checkbox = unchecked
+//   - email checkbox = unchecked
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ColdOutreachProspect {
+  recordId: string;
+  name: string;
+  email: string;
+  title: string;
+  companyName: string;
+  phone: string;
+  location: string;
+  entryId: string;
+}
+
+/**
+ * Get prospects for cold outreach.
+ * Status = "Prospect" + no outreach attempted + no email sent yet.
+ */
+export async function getColdOutreachProspects(limit = 50): Promise<ColdOutreachProspect[]> {
+  const entriesData = await attioFetch<{ data: AttioListEntry[] }>(
+    `/lists/${ATTIO_PROSPECT_LIST_ID}/entries/query`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        filter: {
+          $and: [
+            // Status = "Prospect" (with leading space in Attio's value)
+            { prospect_status: { $eq: " Prospect" } },
+            // Outreach checkbox NOT checked
+            { $not: { called_today: { value: { $eq: true } } } },
+            // Email checkbox NOT checked
+            { $not: { email: { value: { $eq: true } } } },
+          ],
+        },
+        limit: 100,
+      }),
+    },
+  );
+
+  const entries: AttioListEntry[] = entriesData.data || [];
+
+  const results = await Promise.all(
+    entries.map(async (e) => {
+      const rid = e.parent_record_id;
+      try {
+        const person = await getPerson(rid);
+        const email = person.email_addresses?.[0]?.email_address || "";
+        if (!email) return null;
+        const company = person.company?.[0]
+          ? await getCompany(person.company[0].target_record_id)
+          : null;
+        const name = person.name?.[0];
+        return {
+          recordId: rid,
+          name: `${name?.first_name || ""} ${name?.last_name || ""}`.trim(),
+          email,
+          title: person.job_title?.[0]?.value || "",
+          companyName: company?.name?.[0]?.value || "",
+          phone: person.phone_numbers?.[0]?.phone_number || "",
+          location: person.primary_location?.[0]?.locality || "",
+          entryId: e.id.entry_id,
+        };
+      } catch {
+        return null;
+      }
+    }),
+  );
+
+  return results.filter((r): r is ColdOutreachProspect => r !== null).slice(0, limit);
 }

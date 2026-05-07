@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { getEmailCampaignProspects } from "@/lib/attio";
+import { getColdOutreachProspects } from "@/lib/attio";
 
 export async function GET() {
   try {
-    const prospects = await getEmailCampaignProspects();
+    const prospects = await getColdOutreachProspects();
     return NextResponse.json({ prospects });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Unknown error";
