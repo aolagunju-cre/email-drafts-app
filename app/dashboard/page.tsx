@@ -379,18 +379,6 @@ export default function Dashboard() {
                       </CardDescription>
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
-                      {draft.web_url && (
-                        <a
-                          href={draft.web_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          <Button size="sm" variant="ghost">
-                            <ExternalLink className="h-4 w-4" />
-                            Attio
-                          </Button>
-                        </a>
-                      )}
                       <Button
                         size="sm"
                         variant="outline"
@@ -399,6 +387,14 @@ export default function Dashboard() {
                         <Edit3 className="h-4 w-4" />
                         Edit
                       </Button>
+                      {draft.web_url && (
+                        <a href={draft.web_url} target="_blank" rel="noopener noreferrer">
+                          <Button size="sm" variant="outline">
+                            <ExternalLink className="h-4 w-4" />
+                            Attio
+                          </Button>
+                        </a>
+                      )}
                       <Button size="sm" onClick={() => handleOpenInEmail(draft)}>
                         <Send className="h-4 w-4" />
                         Open in Email
