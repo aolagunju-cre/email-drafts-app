@@ -61,6 +61,7 @@ export default function Dashboard() {
   const [draftCount, setDraftCount] = useState<string>("5");
   const [formData, setFormData] = useState({
     prospectName: "",
+    prospectEmail: "",
     prospectCompany: "",
     propertyInterest: "",
     additionalContext: "",
@@ -333,6 +334,18 @@ export default function Dashboard() {
                       setFormData({ ...formData, prospectName: e.target.value })
                     }
                     placeholder="John Smith"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="prospectEmail">Prospect Email *</Label>
+                  <Input
+                    id="prospectEmail"
+                    type="email"
+                    value={formData.prospectEmail}
+                    onChange={(e) =>
+                      setFormData({ ...formData, prospectEmail: e.target.value })
+                    }
+                    placeholder="john@acmecorp.com"
                   />
                 </div>
                 <div className="space-y-2">
