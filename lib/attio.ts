@@ -1,255 +1,226 @@
-// Attio API Helpers
+const ATTIO_API_KEY = process.env.ATTIO_API_KEY!;
+const ATTIO_PROSPECT_LIST_ID = process.env.ATTIO_PROSPECT_LIST_ID!;
+const ATTIO_BASE = "https://api.attio.com/v2";
 
-const ATTIO_API_KEY = process.env.ATTIO_API_KEY!
-const PROSPECT_LIST_ID = '94f88d4f-4334-49a6-b514-a2ec366898ee'
-const ATTIO_BASE_V2 = 'https://api.attio.com/v2'
+// ─────────────────────────────────────────────────────────────────────────────
+// CORE FETCH
+// ─────────────────────────────────────────────────────────────────────────────
 
-export interface AttioContact {
-  record_id: string
-  name: string
-  email: string
-  company: string
-  job_title: string
-  location: string
-  web_url: string
-}
-
-export interface DraftEmail {
-  name: string
-  email: string
-  company: string
-  job_title: string
-  draft: string
-  record_id: string
-}
-
-export interface UncontactedProspect {
-  recordId: string
-  name: string
-  email: string
-  title: string
-  companyName: string
-  phone: string
-  location: string
-  entryId: string
-  calledToday: boolean
-  hasVm: boolean
+export async function attioFetch<T = unknown>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
+  const res = await fetch(`${ATTIO_BASE}${path}`, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${ATTIO_API_KEY}`,
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Attio ${res.status}: ${err}`);
+  }
+  return res.json() as Promise<T>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Helper: get boolean value from checkbox field
-// Attio checkbox fields can be: {value: true/false} object, "yes"/"no" string, or boolean
+// TYPES
 // ─────────────────────────────────────────────────────────────────────────────
-function getBoolVal(field: any[] | undefined): boolean {
-  if (!field || field.length === 0) return false
-  const item = field[0]
-  if (typeof item === 'boolean') return item
-  if (typeof item === 'object' && item !== null) return item.value === true
-  if (typeof item === 'string') return item === 'yes'
-  return false
+
+interface AttioListEntry {
+  id: { entry_id: string };
+  parent_record_id: string;
+  entry_values: Record<string, AttioValue[]>;
+}
+
+interface AttioValue {
+  value: unknown;
+  active_from?: string;
+}
+
+interface AttioPerson {
+  name?: Array<{ first_name?: string; last_name?: string }>;
+  email_addresses?: Array<{ email_address: string }>;
+  job_title?: Array<{ value: string }>;
+  phone_numbers?: Array<{ phone_number: string }>;
+  primary_location?: Array<{ locality: string }>;
+  company?: Array<{ target_record_id: string }>;
+}
+
+interface AttioCompany {
+  name?: Array<{ value: string }>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Step 1: Fetch ALL Prospect List entries
-// Note: Attio's boolean filter {call: false} is broken — returns all entries
+// PUBLIC API
 // ─────────────────────────────────────────────────────────────────────────────
-export async function getProspectListEntries(): Promise<any[]> {
-  const response = await fetch(
-    `https://api.attio.com/v2/lists/${PROSPECT_LIST_ID}/entries/query`,
+
+/**
+ * Get prospects who have the Email_Campaign checkbox checked in Attio.
+ * These are the people queued for the email campaign.
+ * After sending, mark them via markEmailSent() to update the Email checkbox.
+ */
+export async function getEmailCampaignProspects(): Promise<ColdOutreachProspect[]> {
+  const entriesData = await attioFetch<{ data: AttioListEntry[] }>(
+    `/lists/${ATTIO_PROSPECT_LIST_ID}/entries/query`,
     {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${ATTIO_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ limit: 200 }),
-    }
-  )
-  if (!response.ok) throw new Error(`Attio List Entries API error: ${response.status}`)
-  const data = await response.json()
-  if (data.error) throw new Error(`Attio error: ${data.error.message}`)
-  return data.data || []
+      method: "POST",
+      body: JSON.stringify({
+        filter: {
+          $and: [
+            // Email_Campaign checkbox = checked (list attribute, filter directly)
+            { email_campaign: { value: { $eq: true } } },
+          ],
+        },
+        limit: 100,
+      }),
+    },
+  );
+
+  const entries: AttioListEntry[] = entriesData.data || [];
+
+  const results = await Promise.all(
+    entries.map(async (e) => {
+      const rid = e.parent_record_id;
+      try {
+        const person = await getPerson(rid);
+        const email = person.email_addresses?.[0]?.email_address || "";
+        if (!email) return null;
+        const company = person.company?.[0]
+          ? await getCompany(person.company[0].target_record_id)
+          : null;
+        const name = person.name?.[0];
+        return {
+          recordId: rid,
+          name: `${name?.first_name || ""} ${name?.last_name || ""}`.trim(),
+          email,
+          title: person.job_title?.[0]?.value || "",
+          companyName: company?.name?.[0]?.value || "",
+          phone: person.phone_numbers?.[0]?.phone_number || "",
+          location: person.primary_location?.[0]?.locality || "",
+          entryId: e.id.entry_id,
+          calledToday: false,
+          hasVm: false,
+        };
+      } catch {
+        return null;
+      }
+    }),
+  );
+
+  return results.filter(r => r !== null) as ColdOutreachProspect[];
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Step 2: Fetch a single person record by ID
-// ─────────────────────────────────────────────────────────────────────────────
-async function getPerson(recordId: string): Promise<Record<string, any>> {
-  const r = await fetch(
-    `https://api.attio.com/v2/objects/people/records/${recordId}`,
-    { headers: { Authorization: `Bearer ${ATTIO_API_KEY}` }, cache: 'no-store' }
-  )
-  if (!r.ok) return {}
-  const d = await r.json()
-  return d.data?.values || {}
+/**
+ * Mark the Email checkbox on a list entry after an email is sent.
+ * This prevents duplicate sends.
+ */
+export async function markEmailSent(entryId: string) {
+  return attioFetch(`/lists/${ATTIO_PROSPECT_LIST_ID}/entries/${entryId}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      data: { entry_values: { email: [{ value: true }] } },
+    }),
+  });
 }
 
-async function getCompany(recordId: string): Promise<Record<string, any> | null> {
+// ─── Internal helpers ────────────────────────────────────────────────────────────
+
+export async function getPerson(recordId: string): Promise<AttioPerson> {
+  const data = await attioFetch<{ data: { values: AttioPerson } }>(
+    `/objects/people/records/${recordId}`,
+  );
+  return data.data?.values || {};
+}
+
+async function getCompany(recordId: string): Promise<AttioCompany | null> {
   try {
-    const r = await fetch(
-      `https://api.attio.com/v2/objects/companies/records/${recordId}`,
-      { headers: { Authorization: `Bearer ${ATTIO_API_KEY}` }, cache: 'no-store' }
-    )
-    if (!r.ok) return null
-    const d = await r.json()
-    return d.data?.values || null
+    const data = await attioFetch<{ data: { values: AttioCompany } }>(
+      `/objects/companies/records/${recordId}`,
+    );
+    return data.data?.values || null;
   } catch {
-    return null
+    return null;
   }
 }
 
+// ─── Shared types ──────────────────────────────────────────────────────────────
+
+export type { AttioListEntry, AttioValue, AttioPerson, AttioCompany };
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Get contacts with NO outreach (email/call/vm/meeting checkboxes all false)
-// Uses Prospect List entries + individual person lookups
+// COLD OUTREACH QUERY — prospects who are:
+//   - Status = "Prospect" (not Lead, not Dead, not Customer)
+//   - Outreach checkbox = unchecked
+//   - Email checkbox = unchecked
 // ─────────────────────────────────────────────────────────────────────────────
-export async function getUndraftedContacts(limit = 10): Promise<AttioContact[]> {
-  const allEntries = await getProspectListEntries()
 
-  // Client-side filter: only entries where NO outreach checkbox is "yes"
-  const unchecked = allEntries.filter((e: any) => {
-    const ev = e.entry_values || {}
-    const emailed = getBoolVal(ev.email)
-    const called  = getBoolVal(ev.call)
-    const vm      = getBoolVal(ev.voicemail)
-    const met     = getBoolVal(ev.booked_meeting)
-    return !emailed && !called && !vm && !met
-  })
-
-  const contacts: AttioContact[] = []
-  for (const entry of unchecked) {
-    if (contacts.length >= limit) break
-    const rid = entry.parent_record_id
-    if (!rid) continue
-
-    const person = await getPerson(rid)
-    const nameRef = person.name?.[0]
-    const name = nameRef
-      ? `${nameRef.first_name || ''} ${nameRef.last_name || ''}`.trim()
-      : 'Unknown'
-    const email = person.email_addresses?.[0]?.email_address || ''
-    if (!email) continue
-
-    contacts.push({
-      record_id: rid,
-      name,
-      email,
-      company: person.company?.[0]?.title || '',
-      job_title: person.job_title?.[0]?.value || '',
-      location: person.primary_location?.[0]?.locality || '',
-      web_url: `https://app.attio.com/ola-real-estate/person/${rid}`,
-    })
-  }
-
-  // Shuffle so each run shows different contacts
-  return contacts.sort(() => Math.random() - 0.5)
+interface ColdOutreachProspect {
+  recordId: string;
+  name: string;
+  email: string;
+  title: string;
+  companyName: string;
+  phone: string;
+  location: string;
+  entryId: string;
+  calledToday: boolean;
+  hasVm: boolean;
 }
 
-export const getRandomContacts = getUndraftedContacts
+interface UncontactedProspect extends ColdOutreachProspect {}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Prospect List v2 — with entry IDs for writing back outreach status
-// ─────────────────────────────────────────────────────────────────────────────
-export async function getUncontactedProspectsV2(limit = 20): Promise<UncontactedProspect[]> {
-  const allEntries = await getProspectListEntries()
-
-  const unchecked = allEntries.filter((e: any) => {
-    const ev = e.entry_values || {}
-    const emailed = getBoolVal(ev.email)
-    const called  = getBoolVal(ev.call)
-    const vm      = getBoolVal(ev.voicemail)
-    const met     = getBoolVal(ev.booked_meeting)
-    return !emailed && !called && !vm && !met
-  })
-
-  const prospects: UncontactedProspect[] = []
-  for (const entry of unchecked) {
-    if (prospects.length >= limit) break
-    const rid = entry.parent_record_id
-    if (!rid) continue
-
-    const person = await getPerson(rid)
-    const nameRef = person.name?.[0]
-    const name = nameRef ? `${nameRef.first_name || ''} ${nameRef.last_name || ''}`.trim() : ''
-    const email = person.email_addresses?.[0]?.email_address || ''
-    if (!email) continue
-
-    const companyRef = person.company?.[0]
-    let companyName = companyRef?.title || ''
-    if (companyRef?.target_record_id && !companyName) {
-      const co = await getCompany(companyRef.target_record_id)
-      companyName = co?.name?.[0]?.value || ''
-    }
-
-    const ev = entry.entry_values || {}
-    prospects.push({
-      recordId: rid,
-      name,
-      email,
-      title: person.job_title?.[0]?.value || '',
-      companyName,
-      phone: person.phone_numbers?.[0]?.phone_number || '',
-      location: person.primary_location?.[0]?.locality || '',
-      entryId: entry.id?.entry_id || '',
-      calledToday: getBoolVal(ev.called_today),
-      hasVm: getBoolVal(ev.voicemail),
-    })
-  }
-
-  return prospects.sort(() => Math.random() - 0.5)
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Write outreach status back to a Prospect List entry
-// ─────────────────────────────────────────────────────────────────────────────
-export async function markOutreach(entryId: string, type: 'email' | 'call' | 'voicemail' | 'booked_meeting') {
-  const res = await fetch(`${ATTIO_BASE_V2}/lists/${PROSPECT_LIST_ID}/entries/${entryId}`, {
-    method: 'PATCH',
-    headers: { Authorization: `Bearer ${ATTIO_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ data: { entry_values: { [type]: [{ value: true }] } } }),
-  })
-  if (!res.ok) throw new Error(`markOutreach failed: ${res.status} ${await res.text()}`)
-  return res.json()
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Draft note helpers (not used by generate route, kept for future use)
-// ─────────────────────────────────────────────────────────────────────────────
-export async function addDraftNoteToRecord(recordId: string, body: string): Promise<void> {
-  const response = await fetch(
-    `https://api.attio.com/v2/objects/people/records/${recordId}/notes`,
+export async function getColdOutreachProspects(limit = 50): Promise<ColdOutreachProspect[]> {
+  const entriesData = await attioFetch<{ data: AttioListEntry[] }>(
+    `/lists/${ATTIO_PROSPECT_LIST_ID}/entries/query`,
     {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${ATTIO_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ body }),
-    }
-  )
-  if (!response.ok) throw new Error(`Attio note write error: ${response.status}`)
-}
+      method: "POST",
+      body: JSON.stringify({
+        filter: {
+          $and: [
+            // Status = "Prospect"
+            { act_status: { $eq: "Prospect" } },
+            // Outreach checkbox NOT checked
+            { $not: { called_today: { value: { $eq: true } } } },
+            // Email checkbox NOT checked
+            { $not: { email: { value: { $eq: true } } } },
+          ],
+        },
+        limit: 100,
+      }),
+    },
+  );
 
-// Legacy wrapper for backward compatibility with tests
-export async function getUncheckedEntryRecordIds(): Promise<string[]> {
-  const entries = await getProspectListEntries()
-  return entries.map((e: any) => e.parent_record_id)
-}
+  const entries: AttioListEntry[] = entriesData.data || [];
 
-// Legacy wrapper for backward compatibility
-export async function getPeopleByRecordIds(recordIds: string[]): Promise<any[]> {
-  const results: any[] = []
-  for (const rid of recordIds) {
-    try {
-      const response = await fetch(
-        `https://api.attio.com/v2/objects/people/records/${rid}`,
-        { headers: { Authorization: `Bearer ${ATTIO_API_KEY}` }, cache: 'no-store' }
-      )
-      if (!response.ok) continue
-      const d = await response.json()
-      if (d.data) results.push(d.data)
-    } catch {
-      // skip
-    }
-  }
-  return results
+  const results = await Promise.all(
+    entries.map(async (e) => {
+      const rid = e.parent_record_id;
+      try {
+        const person = await getPerson(rid);
+        const email = person.email_addresses?.[0]?.email_address || "";
+        if (!email) return null;
+        const company = person.company?.[0]
+          ? await getCompany(person.company[0].target_record_id)
+          : null;
+        const name = person.name?.[0];
+        return {
+          recordId: rid,
+          name: `${name?.first_name || ""} ${name?.last_name || ""}`.trim(),
+          email,
+          title: person.job_title?.[0]?.value || "",
+          companyName: company?.name?.[0]?.value || "",
+          phone: person.phone_numbers?.[0]?.phone_number || "",
+          location: person.primary_location?.[0]?.locality || "",
+          entryId: e.id.entry_id,
+        };
+      } catch {
+        return null;
+      }
+    }),
+  );
+
+  return results.filter((r): r is ColdOutreachProspect => r !== null).slice(0, limit);
 }

@@ -62,7 +62,7 @@ interface AttioCompany {
  * These are the people queued for the email campaign.
  * After sending, mark them via markEmailSent() to update the Email checkbox.
  */
-export async function getEmailCampaignProspects(): Promise<UncontactedProspect[]> {
+export async function getEmailCampaignProspects(): Promise<ColdOutreachProspect[]> {
   const entriesData = await attioFetch<{ data: AttioListEntry[] }>(
     `/lists/${ATTIO_PROSPECT_LIST_ID}/entries/query`,
     {
@@ -110,7 +110,7 @@ export async function getEmailCampaignProspects(): Promise<UncontactedProspect[]
     }),
   );
 
-  return results.filter((r): r is UncontactedProspect => r !== null);
+  return results.filter(r => r !== null) as ColdOutreachProspect[];
 }
 
 /**
@@ -149,23 +149,12 @@ async function getCompany(recordId: string): Promise<AttioCompany | null> {
 // ─── Shared types ──────────────────────────────────────────────────────────────
 
 export type { AttioListEntry, AttioValue, AttioPerson, AttioCompany };
-  recordId: string;
-  name: string;
-  email: string;
-  title: string;
-  companyName: string;
-  phone: string;
-  location: string;
-  entryId: string;
-  calledToday: boolean;
-  hasVm: boolean;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // COLD OUTREACH QUERY — prospects who are:
 //   - Status = "Prospect" (not Lead, not Dead, not Customer)
-//   - called_today checkbox = unchecked
-//   - email checkbox = unchecked
+//   - Outreach checkbox = unchecked
+//   - Email checkbox = unchecked
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface ColdOutreachProspect {
@@ -179,10 +168,6 @@ interface ColdOutreachProspect {
   entryId: string;
 }
 
-/**
- * Get prospects for cold outreach.
- * Status = "Prospect" + no outreach attempted + no email sent yet.
- */
 export async function getColdOutreachProspects(limit = 50): Promise<ColdOutreachProspect[]> {
   const entriesData = await attioFetch<{ data: AttioListEntry[] }>(
     `/lists/${ATTIO_PROSPECT_LIST_ID}/entries/query`,
@@ -191,8 +176,8 @@ export async function getColdOutreachProspects(limit = 50): Promise<ColdOutreach
       body: JSON.stringify({
         filter: {
           $and: [
-            // Status = "Prospect" (with leading space in Attio's value)
-            { prospect_status: { $eq: " Prospect" } },
+            // Status = "Prospect"
+            { act_status: { $eq: "Prospect" } },
             // Outreach checkbox NOT checked
             { $not: { called_today: { value: { $eq: true } } } },
             // Email checkbox NOT checked
