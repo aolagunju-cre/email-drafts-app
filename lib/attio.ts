@@ -129,10 +129,18 @@ export async function markEmailSent(entryId: string) {
 // ─── Internal helpers ────────────────────────────────────────────────────────────
 
 export async function getWorkspaceSlug(): Promise<string | null> {
+  // Env var takes priority — set ATTIO_WORKSPACE_SLUG in Vercel if the API call fails
+  if (process.env.ATTIO_WORKSPACE_SLUG) return process.env.ATTIO_WORKSPACE_SLUG;
   try {
-    const data = await attioFetch<{ data: { workspace_slug: string } }>("/self");
-    return data.data?.workspace_slug || null;
-  } catch {
+    const data = await attioFetch<{ data: Record<string, unknown> }>("/self");
+    console.log("[attio] /self response:", JSON.stringify(data?.data));
+    const slug =
+      (data?.data?.workspace_slug as string) ||
+      (data?.data?.workspace?.slug as string) ||
+      null;
+    return slug;
+  } catch (err) {
+    console.error("[attio] getWorkspaceSlug failed:", err);
     return null;
   }
 }
