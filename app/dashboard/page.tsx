@@ -63,8 +63,6 @@ export default function Dashboard() {
     prospectName: "",
     prospectEmail: "",
     prospectCompany: "",
-    propertyInterest: "",
-    additionalContext: "",
   });
 
   const handleAutoGenerate = async () => {
@@ -102,8 +100,6 @@ export default function Dashboard() {
             company: c.company,
             job_title: c.job_title,
           })),
-          propertyInterest: formData.propertyInterest,
-          additionalContext: formData.additionalContext,
         }),
       });
 
@@ -262,26 +258,6 @@ export default function Dashboard() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-2 flex-1">
-                <Label>Property Interest (optional)</Label>
-                <Input
-                  placeholder="Downtown Calgary office, 5,000 sq ft…"
-                  value={formData.propertyInterest}
-                  onChange={(e) =>
-                    setFormData({ ...formData, propertyInterest: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2 flex-1">
-                <Label>Additional context (optional)</Label>
-                <Input
-                  placeholder="Any extra context to include in emails…"
-                  value={formData.additionalContext}
-                  onChange={(e) =>
-                    setFormData({ ...formData, additionalContext: e.target.value })
-                  }
-                />
               </div>
               <Button
                 onClick={handleAutoGenerate}
