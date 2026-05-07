@@ -166,7 +166,11 @@ interface ColdOutreachProspect {
   phone: string;
   location: string;
   entryId: string;
+  calledToday: boolean;
+  hasVm: boolean;
 }
+
+interface UncontactedProspect extends ColdOutreachProspect {}
 
 export async function getColdOutreachProspects(limit = 50): Promise<ColdOutreachProspect[]> {
   const entriesData = await attioFetch<{ data: AttioListEntry[] }>(
