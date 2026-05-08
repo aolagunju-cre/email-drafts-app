@@ -23,9 +23,7 @@ We currently have a client with an additional 3,500 SF of office space that coul
 
 If it's not relevant, feel free to send over your criteria such as size, budget, location, and timing, and I can keep an eye out for opportunities that align. If you'd prefer not to receive these, just reply 1.
 
-Best,
-Abdul-Samad Olagunju
-Cresa Calgary`,
+Best,`,
   };
 }
 
