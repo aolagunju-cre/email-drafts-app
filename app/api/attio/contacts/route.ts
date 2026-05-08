@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
       company: p.companyName,
       job_title: p.title,
       web_url: workspaceSlug
-        ? `https://app.attio.com/${workspaceSlug}/people/${p.recordId}`
+        ? `https://app.attio.com/${workspaceSlug}/person/${p.recordId}/overview`
         : "",
     }));
 
