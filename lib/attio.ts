@@ -134,10 +134,9 @@ export async function getWorkspaceSlug(): Promise<string | null> {
   try {
     const data = await attioFetch<{ data: Record<string, unknown> }>("/self");
     console.log("[attio] /self response:", JSON.stringify(data?.data));
-    const slug =
-      (data?.data?.workspace_slug as string) ||
-      (data?.data?.workspace?.slug as string) ||
-      null;
+    const d = data?.data as Record<string, unknown>;
+    const workspace = d?.workspace as Record<string, unknown> | undefined;
+    const slug = (d?.workspace_slug as string) || (workspace?.slug as string) || null;
     return slug;
   } catch (err) {
     console.error("[attio] getWorkspaceSlug failed:", err);
