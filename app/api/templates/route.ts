@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { readTemplatesFromDisk, validateTemplate, extractVariables, slugify, type Template } from "@/lib/templates";
+import { validateTemplate, extractVariables, slugify, type Template } from "@/lib/templates";
+import { readTemplatesFromDisk } from "@/lib/templates-server";
 import { writeGHFile } from "@/lib/github-files";
 
 export async function GET() {

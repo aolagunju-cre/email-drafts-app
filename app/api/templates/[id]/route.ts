@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readTemplatesFromDisk, validateTemplate, extractVariables, type Template } from "@/lib/templates";
+import { validateTemplate, extractVariables, type Template } from "@/lib/templates";
+import { readTemplatesFromDisk } from "@/lib/templates-server";
 import { readGHFile, writeGHFile } from "@/lib/github-files";
 
 async function findTemplate(id: string): Promise<{ template: Template; ghPath: string; sha: string } | null> {
