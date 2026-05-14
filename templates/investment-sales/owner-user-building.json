@@ -1,0 +1,12 @@
+{
+  "id": "owner-user-building",
+  "name": "Owner User Building Outreach",
+  "category": "investment-sales",
+  "description": "Outreach for a building for sale opportunity in a specific submarket",
+  "subject": "Potential Building Opportunity in {market}",
+  "variables": ["first_name", "market", "square_feet", "storeys", "exterior_offices", "interior_offices", "parking"],
+  "body": "Hi {first_name},\n\nI am a corporate real estate advisor and specialize in the Calgary office market.\n\nWanted to know if you would be interested in looking at a building for sale in the {market} market.\n\n• {square_feet} square feet\n• {storeys} storeys\n• Quick access to major routes\n• {exterior_offices} exterior offices, {interior_offices} interior offices, {parking} parking\n\nLet us know if you have any interest and we'll be happy to send more info.\n\nThank you,",
+  "archived": false,
+  "created_at": "2026-05-08T00:00:00Z",
+  "updated_at": "2026-05-08T00:00:00Z"
+}

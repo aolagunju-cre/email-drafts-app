@@ -1,0 +1,12 @@
+{
+  "id": "general-outreach",
+  "name": "General Cold Outreach",
+  "category": "cold-outreach",
+  "description": "General office space outreach with social proof and a specific listing",
+  "subject": "Supporting {company} from Cresa",
+  "variables": ["first_name", "company"],
+  "body": "Hi {first_name},\n\nNot sure if you'd be the right person to connect with on this, but this typically falls under whoever oversees office or real estate decisions internally.\n\nMy team advises companies such as Whitecap Resources, BDP, and United Way on office lease strategy, renewals, expansions, and cost reduction initiatives. We're currently working with a client that has an additional 3,500 SF available at 1305 11 Avenue SW that could potentially align with your team's needs while creating an opportunity for meaningful cost savings, so I wanted to see if there may be any interest on your end.\n\nIf your team expects to evaluate office space over the next 12 to 24 months, I'd be happy to share other relevant market insights and opportunities that may be of interest.\n\nIf you'd prefer not to receive these emails, just let me know.\n\nBest,",
+  "archived": false,
+  "created_at": "2026-05-08T00:00:00Z",
+  "updated_at": "2026-05-08T00:00:00Z"
+}
