@@ -1,4 +1,4 @@
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN!;
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN_EMAIL_APP!;
 const GITHUB_OWNER = process.env.GITHUB_OWNER || "aolagunju-cre";
 const GITHUB_REPO = process.env.GITHUB_REPO || "email-drafts-app";
 const GITHUB_BRANCH = process.env.GITHUB_BRANCH || "master";
