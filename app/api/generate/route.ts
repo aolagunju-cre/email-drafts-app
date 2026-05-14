@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { renderTemplate } from "@/lib/templates";
 
 interface Contact {
   name: string;
@@ -11,7 +12,8 @@ function firstName(fullName: string): string {
   return fullName.trim().split(/\s+/)[0] || fullName;
 }
 
-function buildDraft(name: string, email: string, company: string) {
+// Default template used when no template is selected
+function buildDefaultDraft(name: string, email: string, company: string) {
   return {
     to: email,
     subject: `Supporting ${company} from Cresa`,
@@ -32,15 +34,35 @@ Best,`,
 export async function POST(request: Request) {
   const payload = await request.json();
 
+  const hasTemplate = typeof payload.subject === "string" && typeof payload.body === "string";
+  const extraVars: Record<string, string> = payload.extraVars || {};
+
   // Auto-generate path: contacts array from the dashboard
   if (Array.isArray(payload.contacts) && payload.contacts.length > 0) {
-    const drafts = (payload.contacts as Contact[]).map((c) =>
-      buildDraft(c.name, c.email, c.company),
-    );
+    const drafts = (payload.contacts as Contact[]).map((c) => {
+      const vars = { first_name: firstName(c.name), company: c.company, ...extraVars };
+      if (hasTemplate) {
+        return {
+          to: c.email,
+          subject: renderTemplate(payload.subject, vars),
+          body: renderTemplate(payload.body, vars),
+        };
+      }
+      return buildDefaultDraft(c.name, c.email, c.company);
+    });
     return NextResponse.json({ drafts });
   }
 
   // Manual-generate path: individual scalar fields
   const { prospectName = "", prospectEmail = "", prospectCompany = "" } = payload;
-  return NextResponse.json({ drafts: [buildDraft(prospectName, prospectEmail, prospectCompany)] });
+  const vars = { first_name: firstName(prospectName), company: prospectCompany, ...extraVars };
+  const draft = hasTemplate
+    ? {
+        to: prospectEmail,
+        subject: renderTemplate(payload.subject, vars),
+        body: renderTemplate(payload.body, vars),
+      }
+    : buildDefaultDraft(prospectName, prospectEmail, prospectCompany);
+
+  return NextResponse.json({ drafts: [draft] });
 }
