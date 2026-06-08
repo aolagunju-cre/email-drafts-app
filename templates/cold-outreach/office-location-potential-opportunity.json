@@ -1,0 +1,15 @@
+{
+  "id": "office-location-potential-opportunity",
+  "name": "Office Location | Potential Opportunity",
+  "category": "cold-outreach",
+  "description": "Specific office space outreach.",
+  "subject": "Office Location Opportunity | {company}",
+  "body": "Hi {first_name},\n\nNot sure if you'd be the right person to connect with on this, but this typically falls under whoever oversees office or real estate decisions internally.\n\nI am a commercial real estate advisor and specialize in the Calgary office market. We're currently working with a client that has an additional 11,000 SF available at Bow Valley Square (255 5 Ave SW) with occupancy available in the near term, so I wanted to see if there may be any interest on your end.\n\nIf this opportunity isn't the right fit, no worries. In the event your team has any other office space needs, feel free to share what you may be looking for, I'd be happy to flag any opportunities that come across my desk.\n\nIf you'd prefer not to receive these emails, just let me know.\n\nBest,",
+  "variables": [
+    "company",
+    "first_name"
+  ],
+  "archived": false,
+  "created_at": "2026-06-08T17:10:09.398Z",
+  "updated_at": "2026-06-08T17:10:09.399Z"
+}
