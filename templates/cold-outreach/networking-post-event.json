@@ -1,0 +1,14 @@
+{
+  "id": "networking-post-event",
+  "name": "Networking Post Event",
+  "category": "cold-outreach",
+  "description": "Day After Networking Event",
+  "subject": "Pleasure to Connect!",
+  "body": "Hi {first_name},\n\nIt was great meeting you yesterday and learning more about what you do. Also wanted to mention that I work in both office leasing and data centre leasing, so if anything comes up on the commercial real estate side, don’t hesitate to give me a shout. Happy to help however I can.\n\nAnd if there are certain clients or industries you’d like me to look out for and mention your name to when I’m at networking events, just let me know.\n\nAlways happy to grab a coffee!\n\nBest,",
+  "variables": [
+    "first_name"
+  ],
+  "archived": false,
+  "created_at": "2026-06-12T15:38:44.492Z",
+  "updated_at": "2026-06-12T15:38:44.493Z"
+}
