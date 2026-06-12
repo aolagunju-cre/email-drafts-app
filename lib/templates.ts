@@ -11,15 +11,18 @@ export interface Template {
   updated_at: string;
 }
 
-export const CATEGORIES = [
+// Seed categories — users can add their own via the template editor
+export const DEFAULT_CATEGORIES = [
   "cold-outreach",
   "sublease",
   "investment-sales",
   "landlord-outreach",
   "renewals",
-] as const;
+];
 
-export type Category = (typeof CATEGORIES)[number];
+export function formatCategory(slug: string): string {
+  return slug.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}
 
 // Variables auto-filled from Attio contact data — not shown as user inputs
 export const CONTACT_VARS = new Set(["first_name", "company"]);
