@@ -375,7 +375,7 @@ export default function Dashboard() {
                         </tr>
                       </thead>
                       <tbody>
-                        {attioContacts.slice(0, 5).map((c, i) => (
+                        {attioContacts.map((c, i) => (
                           <tr key={i} className="border-t">
                             <td className="px-3 py-2">{c.name}</td>
                             <td className="px-3 py-2 text-muted-foreground">{c.company || "—"}</td>
@@ -384,11 +384,6 @@ export default function Dashboard() {
                         ))}
                       </tbody>
                     </table>
-                    {attioContacts.length > 5 && (
-                      <p className="px-3 py-2 text-xs text-muted-foreground bg-slate-50 border-t">
-                        and {attioContacts.length - 5} more…
-                      </p>
-                    )}
                   </div>
                 </div>
               )}
@@ -448,7 +443,7 @@ export default function Dashboard() {
                         </tr>
                       </thead>
                       <tbody>
-                        {csvContacts.slice(0, 5).map((c, i) => (
+                        {csvContacts.map((c, i) => (
                           <tr key={i} className="border-t">
                             <td className="px-3 py-2">{c.name}</td>
                             <td className="px-3 py-2 text-muted-foreground">{c.company || "—"}</td>
@@ -457,11 +452,6 @@ export default function Dashboard() {
                         ))}
                       </tbody>
                     </table>
-                    {csvContacts.length > 5 && (
-                      <p className="px-3 py-2 text-xs text-muted-foreground bg-slate-50 border-t">
-                        and {csvContacts.length - 5} more…
-                      </p>
-                    )}
                   </div>
                 </div>
               )}
